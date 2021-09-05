@@ -49,9 +49,21 @@ impl ThreadPool {
     //         T: Send + 'static
 }
 
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        for worker in &mut self.workers {
+            println!("Shutting down worker {}", worker.id);
+
+            if let Some(thread) = worker.thread.take() {
+                thread.join().unwrap();
+            }
+        }
+    }
+}
+
 struct Worker {
     id: usize,
-    thread: thread::JoinHandle<()>,
+    thread: Option<thread::JoinHandle<()>>,
 }
 
 impl Worker {
@@ -64,6 +76,18 @@ impl Worker {
             job();
         });
 
-        Worker { id, thread }
+        // cannot use this as it will lock longer until unlock (based on the lifetime of the MutexGuard<T> within the LockResult<MutexGuard<T>>)
+        // let thread = thread::spawn(move || {
+        //     while let Ok(job) = receiver.lock().unwrap().recv() {
+        //         println!("Worker {} got a job; executing.", id);
+
+        //         job();
+        //     }
+        // });
+
+        Worker { 
+            id,
+            thread: Some(thread),
+        }
     }
 }
